@@ -1,0 +1,30 @@
+{
+  "name": "claude-proxy-router",
+  "version": "0.1.0",
+  "description": "Async proxy that routes Anthropic API requests to the local Claude account with the most usage headroom",
+  "type": "module",
+  "bin": {
+    "claude-proxy-router": "bin/claude-proxy-router.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "README.md",
+    "PROTOCOL.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/choiyounggi/claude-proxy-router.git"
+  },
+  "license": "MIT"
+}
