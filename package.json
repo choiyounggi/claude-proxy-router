@@ -1,6 +1,6 @@
 {
   "name": "claude-proxy-router",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Async proxy that routes Anthropic API requests to the local Claude account with the most usage headroom",
   "type": "module",
   "bin": {
