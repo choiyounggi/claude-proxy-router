@@ -77,13 +77,13 @@ ANTHROPIC_BASE_URL=http://100.x.y.z:18787 ANTHROPIC_AUTH_TOKEN=<라우터 키> c
 모든 명령에 `--config PATH`를 줄 수 있습니다. Homebrew로 설치했다면 `install` 대신 `brew services start claude-proxy-router`도
 됩니다(둘 중 하나만).
 
-`status` 출력 예 (값은 예시):
+`status` 출력 예 (값은 예시). 상태는 라우터가 계정을 고를 때와 같은 판단(`available`)으로 `ok`, `가득 참`, `제한 ~리셋 시각`, `토큰 …` 중 하나입니다:
 
 ```
-라우터 http://100.64.0.10:18787  v0.2.0  사용 가능 3/4
+라우터 http://100.64.0.10:18787  v0.2.1  사용 가능 2/4
   account-a            5h  41%  7d  58%  fable   5%  ok  (live)
   account-b            5h  25%  7d  69%  fable   7%  ok  (live)
-  account-c            5h  88%  7d  65%  fable  14%  ok  (headers)
+  account-c            5h 100%  7d  65%  fable  14%  가득 참  (headers)
   account-d            5h   0%  7d 100%  fable  27%  제한 ~2026-01-02T08:00:00.000Z  (live)
 ```
 

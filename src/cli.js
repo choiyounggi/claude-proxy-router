@@ -77,6 +77,20 @@ function pct(w) {
   return w ? `${Math.floor(w.utilization)}%` : '-';
 }
 
+/**
+ * One `status` line for an account from /_router/status. Whether it takes requests comes from the
+ * router's own decision (`available` / `availableForFable`, the rule ranked() uses with limitPct),
+ * not from the usage numbers, so a full account no longer shows as ok.
+ */
+export function accountLine(a) {
+  let state = 'ok';
+  if (a.limitedUntil) state = `제한 ~${a.limitedUntil}`;
+  else if (a.token !== 'ok') state = `토큰 ${a.token}`;
+  else if (a.available === false) state = a.availableForFable === true ? '가득 참 (Fable만 가능)' : '가득 참';
+  else if (a.availableForFable === false) state = 'ok (Fable 제외)';
+  return `  ${a.label.padEnd(20)} 5h ${pct(a.fiveHour).padStart(4)}  7d ${pct(a.sevenDay).padStart(4)}  fable ${pct(a.fable).padStart(4)}  ${state}  (${a.usageSource ?? '-'})`;
+}
+
 export async function main(argv, io = { out: (s) => process.stdout.write(`${s}\n`), err: (s) => process.stderr.write(`${s}\n`) }) {
   let parsed;
   try {
@@ -157,10 +171,7 @@ export async function main(argv, io = { out: (s) => process.stdout.write(`${s}\n
           return 0;
         }
         io.out(`라우터 ${url}  v${body.version}  사용 가능 ${ping.info.accounts}/${body.accounts.length}`);
-        for (const a of body.accounts) {
-          const state = a.limitedUntil ? `제한 ~${a.limitedUntil}` : a.token !== 'ok' ? `토큰 ${a.token}` : 'ok';
-          io.out(`  ${a.label.padEnd(20)} 5h ${pct(a.fiveHour).padStart(4)}  7d ${pct(a.sevenDay).padStart(4)}  fable ${pct(a.fable).padStart(4)}  ${state}  (${a.usageSource ?? '-'})`);
-        }
+        for (const a of body.accounts) io.out(accountLine(a));
         return 0;
       }
       case 'key': {
