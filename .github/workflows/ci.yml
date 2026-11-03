@@ -84,13 +84,14 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           node scripts/release.mjs set-version "$VERSION"
-          if ! git diff --quiet -- package.json; then
-            git add package.json
+          if ! git diff --quiet -- package.json README.md; then
+            git add package.json README.md
             git commit -m "chore(release): v$VERSION"
           fi
           git tag -a "v$VERSION" -m "v$VERSION"
-          git push origin HEAD:main
-          git push origin "v$VERSION"
+          # One atomic push: main and the tag land together or not at all, so a re-run never finds one
+          # without the other.
+          git push --atomic origin HEAD:main "v$VERSION"
 
       - name: GitHub release
         if: steps.plan.outputs.release == 'true' && steps.plan.outputs.github != 'true'

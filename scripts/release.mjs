@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-// Release planning for the GitHub Actions release job. The workflow owns git, tags and
-// uploads; this file owns the decisions, so they can be unit tested.
+// Release planning for the GitHub Actions release job. The workflow owns git, tags and uploads;
+// this file owns the decisions, so they can be unit tested (scripts/release.check.mjs).
 //
 //   node scripts/release.mjs plan                   → JSON {release, version, previous, bump}, notes in release-notes.md
-//   node scripts/release.mjs set-version <version>  → writes package.json
-//
-// The Homebrew formula lives in choiyounggi/homebrew-tap and is not touched here.
+//   node scripts/release.mjs set-version <version>  → writes package.json, the lockfile's root version and
+//                                                     README.md's `<name>@x.y.z` install pins
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,11 +12,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACKAGE_JSON = path.join(ROOT, 'package.json');
+const LOCKFILES = ['npm-shrinkwrap.json', 'package-lock.json'].map((name) => path.join(ROOT, name));
 const NOTES = path.join(ROOT, 'release-notes.md');
-const REPO_URL = 'https://github.com/choiyounggi/claude-proxy-router';
+const README = path.join(ROOT, 'README.md');
 
-// Commits of these types change nothing a user installs, so on their own they do not cut a
-// release. Anything else — including messages that follow no convention — does, as a patch.
+// Commits of these types change nothing a user installs, so on their own they do not cut a release.
+// Anything else — including messages that follow no convention — does, as a patch.
 const NON_RELEASING = new Set(['docs', 'chore', 'ci', 'test', 'style']);
 // Git's own merge subjects: the merged commits are in the range and classified on their own.
 const MERGE_COMMIT = /^Merge (pull request|branch|remote-tracking branch|tag|commit) /;
@@ -55,9 +55,9 @@ export function bumpVersion(version, bump) {
 }
 
 /**
- * The next release from the last tag, the commits since it and package.json's version. With
- * no tag yet, package.json's version is the first release. A version raised by hand in
- * package.json wins over a smaller computed one.
+ * The next release from the last tag, the commits since it and package.json's version. With no tag
+ * yet, package.json's version is the first release. A version raised by hand in package.json wins
+ * over a smaller computed one.
  */
 export function planRelease({ previousTag, packageVersion, commits }) {
   const classified = commits.map((c) => ({ ...c, ...classifyCommit(c) }));
@@ -72,22 +72,60 @@ export function planRelease({ previousTag, packageVersion, commits }) {
   return { release: true, version, previous, bump, commits: classified };
 }
 
-export function renderNotes({ version, previous, commits }) {
-  const groups = [
-    ['Breaking changes', (c) => c.bump === 'major'],
-    ['Features', (c) => c.bump === 'minor'],
-    ['Fixes and other changes', (c) => c.bump === 'patch'],
-  ];
+// The bot's own release commits; never listed in notes.
+const RELEASE_COMMIT = /^chore\(release\): (v\d+\.\d+\.\d+|update Homebrew formula for v\S+)$/;
+// Every commit since the last tag lands in one section, in `git log` order; only the bot's release
+// commits and git merge commits (whose merged commits are listed themselves) are left out.
+const NOTE_SECTIONS = [
+  ['Breaking changes', (c) => c.bump === 'major'],
+  ['Features', (c) => c.bump === 'minor'],
+  ['Fixes', (c) => c.bump === 'patch' && c.type === 'fix'],
+  ['Other changes', (c) => c.bump === 'patch' && c.type !== 'fix'],
+  ['Documentation', (c) => c.bump === 'none' && c.type === 'docs'],
+  ['Maintenance', (c) => c.bump === 'none' && c.type !== 'docs'],
+];
+
+export function renderNotes({ version, previous, commits }, repoUrl) {
+  const listed = commits.filter((c) => c.type !== 'merge' && !RELEASE_COMMIT.test(c.subject));
   const lines = [];
-  for (const [heading, belongs] of groups) {
-    const items = commits.filter(belongs);
+  for (const [heading, belongs] of NOTE_SECTIONS) {
+    const items = listed.filter(belongs);
     if (items.length === 0) continue;
     lines.push(`## ${heading}`, '', ...items.map((c) => `- ${c.title} (${c.hash.slice(0, 7)})`), '');
   }
   if (lines.length === 0) lines.push('Initial release.', '');
   const range = previous ? `v${previous}...v${version}` : `v${version}`;
-  lines.push(`**Full changelog**: ${REPO_URL}/${previous ? 'compare' : 'commits'}/${range}`, '');
+  lines.push(`**Full changelog**: ${repoUrl}/${previous ? 'compare' : 'commits'}/${range}`, '');
   return lines.join('\n');
+}
+
+/**
+ * package.json text with its top-level "version" set, everything else byte-for-byte: a JSON
+ * round-trip would reformat a hand-formatted file. The top-level key is the first one at two
+ * spaces of indent.
+ */
+export function withPackageVersion(text, version) {
+  parseVersion(version);
+  const field = /^( {2}"version":\s*")[^"]*(")/m;
+  if (!field.test(text)) throw new Error('package.json has no top-level "version"');
+  return text.replace(field, `$1${version}$2`);
+}
+
+/** A lockfile (npm-shrinkwrap.json / package-lock.json) with its root package at `version`; dependencies untouched. */
+export function withLockVersion(lock, version) {
+  parseVersion(version);
+  const next = { ...lock, version };
+  if (lock.packages?.['']) next.packages = { ...lock.packages, '': { ...lock.packages[''], version } };
+  return next;
+}
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** `text` with every `<name>@x.y.z` pin (an install command in a README) moved to `version`; `<name>@<…>` placeholders stay. */
+export function withPinnedVersion(text, name, version) {
+  parseVersion(version);
+  const pin = new RegExp(`(?<![\\w@/.-])${escapeRegExp(name)}@\\d+\\.\\d+\\.\\d+(?![\\w.-]*\\d)`, 'g');
+  return text.replace(pin, `${name}@${version}`);
 }
 
 function git(...args) {
@@ -114,23 +152,36 @@ function commitsSince(tag) {
     });
 }
 
-function readPackage() {
-  return JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
+function readJson(file) {
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
+}
+
+function writeJson(file, value) {
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+/** https://github.com/owner/repo from package.json's repository field. */
+function repoUrl(pkg) {
+  const raw = typeof pkg.repository === 'string' ? pkg.repository : pkg.repository?.url;
+  if (!raw) throw new Error('package.json has no repository url');
+  return raw.replace(/^git\+/, '').replace(/^git@github\.com:/, 'https://github.com/').replace(/\.git$/, '');
 }
 
 function main([command, ...args]) {
   if (command === 'plan') {
+    const pkg = readJson(PACKAGE_JSON);
     const previousTag = lastTag();
-    const plan = planRelease({ previousTag, packageVersion: readPackage().version, commits: commitsSince(previousTag) });
-    if (plan.release) fs.writeFileSync(NOTES, renderNotes(plan));
+    const plan = planRelease({ previousTag, packageVersion: pkg.version, commits: commitsSince(previousTag) });
+    if (plan.release) fs.writeFileSync(NOTES, renderNotes(plan, repoUrl(pkg)));
     process.stdout.write(`${JSON.stringify({ release: plan.release, version: plan.version, previous: plan.previous, bump: plan.bump })}\n`);
     return;
   }
   if (command === 'set-version') {
     parseVersion(args[0]);
-    const pkg = readPackage();
-    pkg.version = args[0];
-    fs.writeFileSync(PACKAGE_JSON, `${JSON.stringify(pkg, null, 2)}\n`);
+    const pkg = readJson(PACKAGE_JSON);
+    fs.writeFileSync(PACKAGE_JSON, withPackageVersion(fs.readFileSync(PACKAGE_JSON, 'utf8'), args[0]));
+    for (const lock of LOCKFILES) if (fs.existsSync(lock)) writeJson(lock, withLockVersion(readJson(lock), args[0]));
+    if (fs.existsSync(README)) fs.writeFileSync(README, withPinnedVersion(fs.readFileSync(README, 'utf8'), pkg.name, args[0]));
     return;
   }
   throw new Error('usage: release.mjs plan | set-version <version>');
