@@ -4,8 +4,8 @@
 class ClaudeProxyRouter < Formula
   desc "Route Anthropic API requests to the local Claude account with the most headroom"
   homepage "https://github.com/choiyounggi/claude-proxy-router"
-  url "https://registry.npmjs.org/claude-proxy-router/-/claude-proxy-router-0.1.0.tgz"
-  sha256 "a1935f60f888acf45e15d8b9231d94ada501af0528b9a66d97ddae04e302b60b"
+  url "https://registry.npmjs.org/claude-proxy-router/-/claude-proxy-router-0.2.0.tgz"
+  sha256 "38bb85e36fd3948a8696a147b789fc2d7ba94cc58c4a2db743b1fd9a1215b335"
   license "MIT"
 
   depends_on :macos
