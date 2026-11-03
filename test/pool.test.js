@@ -83,6 +83,28 @@ test('limitPct below 100 keeps accounts out earlier', async () => {
   assert.deepEqual(pool.ranked().map((s) => s.account.id), ['b']);
 });
 
+test('snapshot says which accounts the router would pick now, for other models and for Fable', async () => {
+  const { pool } = makePool({
+    over: { usage: usage(91, 0) },
+    fablefull: { usage: usage(50, 0, 95) },
+    fine: { usage: usage(10, 10, 10) },
+    unknown: { usage: null },
+    expired: { usage: usage(0, 0), expiresAt: NOW - 1 },
+    lim: { usage: usage(0, 0) },
+  }, { config: { limitPct: 90, tokenRefresh: false } });
+  await pool.tick();
+  pool.markLimited(pool.states.get('lim'), { resetAt: NOW + HOUR, claim: 'five_hour' });
+  const view = Object.fromEntries(pool.snapshot().map((a) => [a.id, [a.available, a.availableForFable]]));
+  assert.deepEqual(view, {
+    // `over` has no Fable window, so a Fable request scores it unknown and ranks it last instead of leaving it out.
+    over: [false, true], fablefull: [true, false], fine: [true, true], unknown: [true, true], expired: [false, false], lim: [false, false],
+  });
+  // The same rule ranked() picks by: every available account is ranked, and nothing else.
+  assert.deepEqual(pool.ranked().map((s) => s.account.id).sort(), Object.keys(view).filter((id) => view[id][0]).sort());
+  assert.deepEqual(pool.ranked({ model: 'claude-fable-5-1' }).map((s) => s.account.id).sort(),
+    Object.keys(view).filter((id) => view[id][1]).sort());
+});
+
 test('usage is polled once per interval and backs off on 429', async () => {
   const { pool, clock, calls } = makePool({ a: { usage: usage(1, 1) }, b: { usage: usage(1, 1) } }, {
     config: { usagePollS: 60 },

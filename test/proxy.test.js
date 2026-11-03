@@ -186,6 +186,8 @@ test('the status endpoint lists accounts without tokens', async (t) => {
   assert.equal(res.status, 200);
   assert.ok(!text.includes('tok-a'));
   assert.equal(JSON.parse(text).accounts[0].score, 12);
+  assert.equal(JSON.parse(text).accounts[0].available, true);
+  assert.equal(JSON.parse(text).limitPct, 100);
 });
 
 test('upstreamUrl keeps every request on the upstream origin under /v1/', () => {

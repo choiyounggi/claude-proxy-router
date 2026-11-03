@@ -255,7 +255,7 @@ export function createHandler({ pool, routerKey, upstream = 'https://api.anthrop
     }
     if (req.method === 'GET' && url === '/_router/status') {
       json(res, 200, { service: SERVICE, protocol: PROTOCOL_VERSION, version, generatedAt: new Date().toISOString(),
-        accounts: pool.snapshot() });
+        limitPct: pool.limitPct, accounts: pool.snapshot() });
       return;
     }
     const target = upstreamUrl(base, url);

@@ -228,6 +228,17 @@ export class Pool {
   }
 
   /**
+   * Whether ranked() may pick this account now, exclusions aside: a live token, no limit, and a score
+   * (Fable window included for a Fable request) that is unknown or under limitPct.
+   */
+  isEligible(s, now, fable) {
+    if (!s.credential || s.credential.expiresAtMs <= now) return false;
+    if (s.limitedUntil > now) return false;
+    const score = scoreOf(s.usage, now, { fable });
+    return !(score !== null && score >= this.limitPct);
+  }
+
+  /**
    * Accounts that can take a request now, best first: lowest load, then lowest 5h use. An account with
    * unknown usage goes after every known one. `exclude` holds ids already tried for this request.
    */
@@ -237,10 +248,8 @@ export class Pool {
     const out = [];
     for (const s of this.states.values()) {
       if (exclude.has(s.account.id)) continue;
-      if (!s.credential || s.credential.expiresAtMs <= now) continue;
-      if (s.limitedUntil > now) continue;
+      if (!this.isEligible(s, now, fable)) continue;
       const score = scoreOf(s.usage, now, { fable });
-      if (score !== null && score >= this.limitPct) continue;
       out.push({ s, score, five: windowPct(s.usage?.fiveHour, now) ?? 0 });
     }
     out.sort((a, b) => {
@@ -335,6 +344,9 @@ export class Pool {
       usageAt: s.usageAt ? new Date(s.usageAt).toISOString() : null,
       usageError: s.usageError,
       limitedUntil: s.limitedUntil > now ? new Date(s.limitedUntil).toISOString() : null,
+      // What ranked() would do right now: pick this account for a request, and for a Fable request.
+      available: this.isEligible(s, now, false),
+      availableForFable: this.isEligible(s, now, true),
       refresh: { state: s.refresh.state, reason: s.refresh.reason },
       pendingWrite: s.pending !== null,
     }));

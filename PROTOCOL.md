@@ -49,6 +49,43 @@ usable token). A sender registers the router only when it gets `200` with `pong:
 | `401` with `service: "claude-proxy-router"` | router reached, key wrong |
 | anything else | not a claude-proxy-router at that address |
 
+## Status (per-account view)
+
+```http
+GET /_router/status
+x-router-key: <key>
+```
+
+The key check and its `401` are the same as for every other request.
+
+```json
+{"service": "claude-proxy-router", "protocol": 1, "version": "0.1.0", "generatedAt": "2026-01-01T00:00:00.000Z",
+ "limitPct": 100,
+ "accounts": [{"id": "example-id", "kind": "orca", "label": "example", "organization": "Example Org",
+   "token": "ok", "tokenExpiresAt": "2026-01-01T08:00:00.000Z", "score": 41,
+   "fiveHour": {"utilization": 41, "resetsAt": 1767232800000}, "sevenDay": {"utilization": 12, "resetsAt": 1767780000000},
+   "fable": null, "usageSource": "live", "usageAt": "2026-01-01T00:00:00.000Z", "usageError": null,
+   "limitedUntil": null, "available": true, "availableForFable": true,
+   "refresh": {"state": "fresh", "reason": null}, "pendingWrite": false}]}
+```
+
+- Secret-free: no token value appears. `token` is `ok`, `expired`, or why there is no usable token.
+- `available` / `availableForFable`: whether the router would pick this account for a request right now, the
+  second for a Fable model. The rule is the one account choice uses: a live token, no `limitedUntil`, and a load
+  that is unknown or under `limitPct` — `max(5-hour, weekly)` for `available`, the same plus the Fable window for
+  `availableForFable`, where an unknown Fable window makes the load unknown (the account stays in, ranked last).
+  A client shows these instead of re-deriving them.
+- A window is `{utilization (percent), resetsAt (epoch ms or null)}` or `null` when unknown. Windows are sent as
+  stored; a window past its `resetsAt` is counted 0 by `score` and by account choice.
+- `score` is `max(5-hour, weekly)` without the Fable window, `null` when unknown. `limitPct` is the router's
+  threshold (config `limitPct`, default 100).
+- `limitedUntil` is set while Anthropic's subscription-limit `429` keeps the account out. `usageSource` is `live`,
+  `cache`, `headers` or `null`; `label`, `organization` and `usageError` may be `null`. `refresh.state` is the last
+  token-refresh outcome: `null` (not tried yet), `fresh`, `refreshed`, `skipped`, `failed` or `stopped`.
+- `generatedAt` is the router's clock; a client comparing reset times uses it, not its own.
+- `claude-proxy-router status` and `claude-auto-proxy router status` both read this. Claude Code's own `/status`
+  and `/usage` cannot show these accounts: its only credential is the router key.
+
 ## Proxying
 
 - Every `/v1/*` request (method, path, query, headers, body) is forwarded to `https://api.anthropic.com` with
