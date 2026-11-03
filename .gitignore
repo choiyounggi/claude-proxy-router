@@ -2,3 +2,4 @@ node_modules/
 .claude/tmp/
 *.tgz
 .DS_Store
+release-notes.md

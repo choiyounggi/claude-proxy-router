@@ -97,6 +97,30 @@ Homebrew로 설치했다면 `install` 대신 `brew services start claude-proxy-r
 npm test        # node:test, 외부 의존성 없음
 ```
 
+## 릴리즈
+
+main에 푸시하면 CI(`.github/workflows/ci.yml`)가 macOS에서 Node 20·22·24로 테스트한 뒤 자동으로 릴리즈합니다.
+
+1. 마지막 `v*` 태그 이후 커밋 메시지(Conventional Commits)로 버전을 정합니다. `feat!:`·`BREAKING CHANGE:` → major,
+   `feat:` → minor, 그 밖의 커밋 → patch. `docs:`·`chore:`·`ci:`·`test:`·`style:`과 Git의 머지 커밋
+   (`Merge pull request …`, `Merge branch …`)만 있으면 릴리즈하지 않습니다.
+2. `package.json` 버전을 올려 커밋하고 `vX.Y.Z` 태그와 GitHub Release를 만듭니다.
+3. npm에 배포합니다. 토큰 없이 npm trusted publishing(GitHub Actions OIDC)으로 인증하므로, npm 패키지 설정에 이
+   저장소의 `ci.yml`이 신뢰할 게시자로 등록돼 있어야 합니다
+   (`npm trust github claude-proxy-router --file ci.yml --repo choiyounggi/claude-proxy-router --allow-publish`).
+4. 태그·GitHub Release·npm 중 하나가 실패하면 그 job을 다시 실행하세요. 이미 있는 것은 건너뛰고 빠진 단계만 실행합니다.
+
+Homebrew formula는 [choiyounggi/homebrew-tap](https://github.com/choiyounggi/homebrew-tap)에 있어 직접 갱신합니다.
+npm에 새 버전이 보인 뒤(배포 후 몇 분 걸림) 아래 값으로 `url`과 `sha256`을 바꿔 푸시하고, 이 저장소의
+`Formula/claude-proxy-router.rb` 사본도 맞춥니다.
+
+```sh
+curl -sL https://registry.npmjs.org/claude-proxy-router/-/claude-proxy-router-<version>.tgz | shasum -a 256
+```
+
+라우터 맥은 체크아웃에서 `git pull` 후 `launchctl kickstart -k gui/$(id -u)/io.github.choiyounggi.claude-proxy-router`로
+다시 시작해야 새 버전이 적용됩니다.
+
 ## 라이선스
 
 MIT — [LICENSE](LICENSE)
