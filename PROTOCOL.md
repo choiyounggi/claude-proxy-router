@@ -59,7 +59,7 @@ x-router-key: <key>
 The key check and its `401` are the same as for every other request.
 
 ```json
-{"service": "claude-proxy-router", "protocol": 1, "version": "0.1.0", "generatedAt": "2026-01-01T00:00:00.000Z",
+{"service": "claude-proxy-router", "protocol": 1, "version": "0.2.0", "generatedAt": "2026-01-01T00:00:00.000Z",
  "limitPct": 100,
  "accounts": [{"id": "example-id", "kind": "orca", "label": "example", "organization": "Example Org",
    "token": "ok", "tokenExpiresAt": "2026-01-01T08:00:00.000Z", "score": 41,
@@ -74,7 +74,8 @@ The key check and its `401` are the same as for every other request.
   second for a Fable model. The rule is the one account choice uses: a live token, no `limitedUntil`, and a load
   that is unknown or under `limitPct` — `max(5-hour, weekly)` for `available`, the same plus the Fable window for
   `availableForFable`, where an unknown Fable window makes the load unknown (the account stays in, ranked last).
-  A client shows these instead of re-deriving them.
+  A client shows these instead of re-deriving them. `available`, `availableForFable` and `limitPct` are sent
+  since 0.2.0; an older router omits them.
 - A window is `{utilization (percent), resetsAt (epoch ms or null)}` or `null` when unknown. Windows are sent as
   stored; a window past its `resetsAt` is counted 0 by `score` and by account choice.
 - `score` is `max(5-hour, weekly)` without the Fable window, `null` when unknown. `limitPct` is the router's
